@@ -1,0 +1,245 @@
+﻿@using CandidateTest_BE_TrayanKarastoyanov.Models;
+@using CandidateTest_BE_TrayanKarastoyanov.Helpers;
+@model List<CountryModel>
+@{
+	ViewBag.Title = "Country Viewer";
+	WebGrid countriesGrid = new WebGrid(Model);
+
+	const string linkDetailsHTMLTemplate = "<a onclick='{0}(\"{1}\")'>{1}</a>";
+}
+
+<div class="jumbotron">
+	<h1>Annexio - Candidate Test</h1>
+	<p class="lead">Trayan Karastoyanov</p>
+</div>
+
+<div class="page-container">
+	<div class="grid-container">
+		<h2>Countries List</h2>
+		<nav class="navbar navbar-default">
+			<div class="container-fluid">
+				<div class="collapse navbar-collapse">
+					@using (Html.BeginForm("CountryViewer", "Home", FormMethod.Get, new { @class = "navbar-form navbar-left" }))
+					{ 
+						<div class="form-group">
+							<input type="text" name="Search" value="@ViewBag.Search" class="form-control" placeholder="Search"/>
+						</div>
+						<button type="submit" value="Search" class="btn btn-success">Search</button>
+					}
+				</div>
+			</div>
+		</nav>
+		<div>
+			@countriesGrid.GetHtml(
+				tableStyle: "table table-responsive table-bordered",
+				fillEmptyRows: true,
+				headerStyle: "grid-header",
+				footerStyle: "grid-footer",
+				mode: WebGridPagerModes.All,
+				firstText: "<< First",
+				previousText: "< Prev",
+				nextText: "Next >",
+				lastText: "Last >>",
+				columns: new[]
+				{
+					countriesGrid.Column("Name", format: (item) => Html.Raw(string.Format(linkDetailsHTMLTemplate, "getCountryDetailsByName", item.Name))),
+					countriesGrid.Column("Region", format: (item) => Html.Raw(string.Format(linkDetailsHTMLTemplate, "getRegionDetails", item.Region))),
+					countriesGrid.Column("Subregion", format: (item) => Html.Raw(string.Format(linkDetailsHTMLTemplate, "getSubregionDetails", item.Subregion)))
+				})
+			@Html.Hidden("dir", countriesGrid.SortDirection)
+			@Html.Hidden("col", countriesGrid.SortColumn)
+		</div>
+	</div>
+
+	<div class="details-container">
+		<div id="show-details"></div>
+	</div>
+</div>
+
+@section Scripts{
+	<script type="text/javascript">
+		$(document).ready(function () {
+			try {
+				var dir = $("#dir").val();
+				var col = $("#col").val();
+				var header = $("th a[href*=" + col + "]");
+				if (dir == "Ascending") {
+					header.text(header.text() + " ▲");
+				}
+				if (dir == "Descending") {
+					header.text(header.text() + " ▼");
+				}
+			} catch (e) {
+			}
+		});
+	</script>
+
+	<script type="text/javascript">
+
+		$(document).ready(function () {
+			$('#bttnSearch').click(function () {
+				var countrySearchName = $('#txtName').val();
+				$.ajax({
+					type: "post",
+					url: "@Url.Action("GetCountriesByName", "Data")" + "?name=" + countrySearchName,
+					//data: { name: countrySearchName },
+					datatype: "json",
+					traditional: true,
+					success: function (data) {
+						if (data == "No Record Found") {
+							alert('No Record Found');
+						}
+						else {
+							$('#gridContent').html(data);
+							$('#txtName').val(countrySearchName);
+						}
+					}
+				});
+			});
+		});
+	</script>
+
+	<script>
+		var detailsHTMLTemplate = "<b>{0}</b>: {1}<br/ ><br/ >";
+		var innerDetailsHTMLTemplate = "<br/ ><b> - {0}:</b> {1}";
+		var arrayDetailsHTMLTemplate = "<br/ ><b> - </b> {0}";
+		var linkDetailsHTMLTemplate = "<a onclick='{0}(\"{1}\")'>{1}</a>";
+
+		// Country Details
+		function getCountryDetailsByName(name) {
+			$.ajax({
+				type: "GET",
+				url: "@Url.Action("GetCountryDetailsByName", "Data")",
+				data: { name: name },
+				success: function (data) {
+					populateWithCountryDetails(data);
+				}
+			});
+		}
+		function getCountryDetailsByAlpha3Code(alpha3Code) {
+			$.ajax({
+				type: "GET",
+				url: "@Url.Action("GetCountryDetailsByAlpha3Code", "Data")",
+				data: { alpha3Code: alpha3Code },
+				success: function (data) {
+					populateWithCountryDetails(data);
+				}
+			});
+		}
+		function populateWithCountryDetails(data) {
+			if (!data) {
+				return;
+			}
+
+			// create container
+			var $details = $("<div></div>");
+			// add styles
+			$details.addClass("show-details-content")
+			// details title
+			$details.append("<b><h2>Country Details</h2></b>");
+
+			$.each(data, function (index, value) {
+				var dataItem = value[0];
+				if (dataItem != undefined) {
+					$details.append(
+						// Name
+						detailsHTMLTemplate.format("Name", dataItem.Name)
+						// Capital
+						+ detailsHTMLTemplate.format("Capital", dataItem.Capital)
+						// Population
+						+ detailsHTMLTemplate.format("Population", dataItem.Population)
+						// Currencies
+						+ detailsHTMLTemplate.format("Currencies", $.map(dataItem.Currencies, function (e) {
+							return innerDetailsHTMLTemplate.format("Name", e.Name) + ", "
+								+ innerDetailsHTMLTemplate.format("Code", e.Code) + ", "
+								+ innerDetailsHTMLTemplate.format("Symbol", e.Symbol) + ";"
+
+						}).join())
+						// Languages
+						+ detailsHTMLTemplate.format("Languages", $.map(dataItem.Languages, function (e) {
+							return innerDetailsHTMLTemplate.format("Name", e.Name) + ", "
+								+ innerDetailsHTMLTemplate.format("NativeName", e.NativeName) + ", "
+								+ innerDetailsHTMLTemplate.format("Iso639_1", e.NativeName) + ", "
+								+ innerDetailsHTMLTemplate.format("Iso639_2", e.NativeName) + ";"
+						}).join())
+						// Borders
+						+ detailsHTMLTemplate.format("Borders", $.map(dataItem.Borders, function (e) {
+							return arrayDetailsHTMLTemplate.format(linkDetailsHTMLTemplate.format("getCountryDetailsByAlpha3Code", e))
+						})));
+				}
+				else {
+					$details.append("Details not Available");
+				}
+			});
+
+			// visualize details
+			$("#show-details")
+				.empty()
+				.append($details);
+		}
+
+		// Region Details
+		function getRegionDetails(region) {
+			$.ajax({
+				type: "GET",
+				url: "@Url.Action("getRegionDetails", "Data")",
+				data: { region: region },
+				success: function (data) {
+					populateWithRegionDetails(data);
+				}
+			});
+		}
+		function getSubregionDetails(subregion) {
+			$.ajax({
+				type: "GET",
+				url: "@Url.Action("getSubregionDetails", "Data")",
+				data: { subregion: subregion },
+				success: function (data) {
+					populateWithRegionDetails(data, true);
+				}
+			});
+		}
+		function populateWithRegionDetails(data, shouldPreviewSubregionDetails) {
+			if (!data) {
+				return;
+			}
+
+			// create container
+			var $details = $("<div></div>");
+			// add styles
+			$details.addClass("show-details-content")
+
+			var previewRegionType = shouldPreviewSubregionDetails ? "Subregion" : "Region";
+			// details title
+			$details.append("<b><h2>" + previewRegionType + " Details</h2></b>");
+
+
+			var dataItem = data.result;
+
+			$details.append(
+				// Name
+				detailsHTMLTemplate.format("{0} Name".format(previewRegionType), dataItem.Name)
+				// Population
+				+ detailsHTMLTemplate.format("Population", dataItem.Population)
+				// Region
+				+ (shouldPreviewSubregionDetails
+					? detailsHTMLTemplate.format("Region", linkDetailsHTMLTemplate.format("getRegionDetails", dataItem.Region))
+					: "")
+				// Countries
+				+ detailsHTMLTemplate.format("Countries (Under The Region)", $.map(dataItem.Countries, function (e) {
+					return arrayDetailsHTMLTemplate.format(linkDetailsHTMLTemplate.format("getCountryDetailsByName", e))
+				}))
+				// Subregions
+				+ (!shouldPreviewSubregionDetails
+					? detailsHTMLTemplate.format("Subregions (Under The Region)", $.map(dataItem.Subregions, function (e) {
+						return arrayDetailsHTMLTemplate.format(linkDetailsHTMLTemplate.format("getSubregionDetails", e))
+					}))
+					: ""));
+
+			// visualize details
+			$("#show-details")
+				.empty()
+				.append($details);
+		}
+	</script>
+}
